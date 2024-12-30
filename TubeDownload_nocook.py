@@ -1,18 +1,6 @@
-import os
-import sys
-import subprocess
 import yt_dlp
 import tempfile
 import streamlit as st
-
-# Попробуем установить ffmpeg через pip, если это не сделано
-def install_ffmpeg():
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "imageio[ffmpeg]"])
-    except subprocess.CalledProcessError:
-        st.error("Не удалось установить ffmpeg")
-
-install_ffmpeg()
 
 # Функция для получения доступных форматов (включая аудио и видео)
 def get_available_formats(url):
@@ -39,13 +27,17 @@ def download_video(url, video_format, audio_format):
     ydl_opts = {
         'format': f'{video_format["format_id"]}+{audio_format["format_id"]}',  # Скачиваем и видео, и аудио
         'merge_output_format': 'mp4',  # Конвертировать в mp4
+        'outtmpl': 'downloaded_video.%(ext)s',  # Указание имени выходного файла
+        'quiet': False,  # Включение подробных логов для отладки
     }
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmpfile:
         ydl_opts['outtmpl'] = tmpfile.name  # Сохраняем файл во временную директорию
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
-                ydl.download([url])
+                st.write("Начинаю скачивание...")
+                ydl.download([url])  # Скачиваем видео и аудио
+                st.write("Скачивание завершено.")
                 return tmpfile.name  # Возвращаем путь к временно сохраненному файлу
             except Exception as e:
                 st.error(f"Ошибка при загрузке: {e}")

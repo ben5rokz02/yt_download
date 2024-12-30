@@ -4,7 +4,7 @@ import streamlit as st
 
 # Функция для получения доступных форматов (включая аудио и видео)
 def get_available_formats(url):
-    ydl_opts = {}
+    ydl_opts = {'quiet': True}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info_dict = ydl.extract_info(url, download=False)
     
@@ -54,6 +54,12 @@ def main():
 
         # Получение доступных форматов
         video_formats, audio_formats = get_available_formats(url)
+
+        # Выводим доступные форматы
+        st.write("Доступные форматы видео:")
+        st.write(video_formats)
+        st.write("Доступные аудио форматы:")
+        st.write(audio_formats)
 
         if video_formats and audio_formats:
             st.subheader("Доступные форматы видео:")

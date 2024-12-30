@@ -1,5 +1,5 @@
 import yt_dlp
-import os
+import tempfile
 import streamlit as st
 
 # Функция для получения доступных форматов (включая аудио и видео)
@@ -22,37 +22,22 @@ def get_available_formats(url):
 
     return video_formats, audio_formats
 
-# Колбэк для отображения прогресса
-def progress_hook(d):
-    if d['status'] == 'downloading':
-        # Убираем лишние escape-коды
-        percent = d.get('_percent_str', '').replace('\x1b[0;94m', '').replace('\x1b[0m', '').strip()
-        speed = d.get('_speed_str', '').replace('\x1b[0;32m', '').replace('\x1b[0m', '').strip()
-        eta = d.get('_eta_str', '').replace('\x1b[0;33m', '').replace('\x1b[0m', '').strip()
-
-        # Вычисляем прогресс для шкалы
-        progress = float(percent.strip('%')) / 100.0 if '%' in percent else 0.0
-
-        # Обновляем элементы интерфейса
-        st.session_state.progress_bar.progress(progress)
-        st.session_state.status_text.text(f"Скачано: {percent} | Скорость: {speed} | Оставшееся время: {eta}")
-
-
 # Основная функция для скачивания видео и аудио
-def download_video(url, video_format, audio_format, download_dir):
+def download_video(url, video_format, audio_format):
     ydl_opts = {
-        'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
         'format': f'{video_format["format_id"]}+{audio_format["format_id"]}',  # Скачиваем и видео, и аудио
         'merge_output_format': 'mp4',  # Конвертировать в mp4
-        'progress_hooks': [progress_hook],  # Подключение колбэка
     }
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            ydl.download([url])
-            st.success(f"Видео успешно загружено в {download_dir}")
-        except Exception as e:
-            st.error(f"Ошибка при загрузке: {e}")
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmpfile:
+        ydl_opts['outtmpl'] = tmpfile.name  # Сохраняем файл во временную директорию
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                ydl.download([url])
+                return tmpfile.name  # Возвращаем путь к временно сохраненному файлу
+            except Exception as e:
+                st.error(f"Ошибка при загрузке: {e}")
+                return None
 
 # Интерфейс Streamlit
 def main():
@@ -87,22 +72,21 @@ def main():
             # Получаем выбранный формат
             selected_format = format_options[[f['display'] for f in format_options].index(selected_format_index)]
 
-            # Выбор директории для сохранения
-            download_dir = os.path.dirname(os.path.abspath(__file__))
-
             # Кнопка для начала загрузки
             if st.button("Скачать видео"):
-                # Создание директории, если её нет
-                if not os.path.exists(download_dir):
-                    os.makedirs(download_dir)
-
-                # Перед началом загрузки, инициализируем элементы интерфейса
-                if 'progress_bar' not in st.session_state:
-                    st.session_state.progress_bar = st.progress(0)
-                    st.session_state.status_text = st.empty()
-
                 with st.spinner("Скачивание видео... Это может занять некоторое время"):
-                    download_video(url, selected_format['video'], selected_format['audio'], download_dir)
+                    # Скачиваем видео во временный файл
+                    tmp_file_path = download_video(url, selected_format['video'], selected_format['audio'])
+                    
+                    if tmp_file_path:
+                        # Открываем временный файл для загрузки через браузер
+                        with open(tmp_file_path, "rb") as tmp_file:
+                            st.download_button(
+                                label="Скачать видео",
+                                data=tmp_file,
+                                file_name=f"{selected_format['video']['height']}p_video.mp4",
+                                mime="video/mp4"
+                            )
         else:
             st.error("Не удалось получить доступные форматы для данного видео.")
     else:

@@ -1,6 +1,7 @@
 import yt_dlp
-import tempfile
+import os
 import streamlit as st
+import tempfile
 
 # Функция для получения доступных форматов (включая аудио и видео)
 def get_available_formats(url):
@@ -24,20 +25,29 @@ def get_available_formats(url):
 
 # Основная функция для скачивания видео и аудио
 def download_video(url, video_format, audio_format):
-    ydl_opts = {
-        'format': f'{video_format["format_id"]}+{audio_format["format_id"]}',  # Скачиваем и видео, и аудио
-        'merge_output_format': 'mp4',  # Конвертировать в mp4
-    }
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmpfile:
-        ydl_opts['outtmpl'] = tmpfile.name  # Сохраняем файл во временную директорию
+    try:
+        # Создаём временный файл для хранения результата
+        temp_dir = tempfile.gettempdir()
+        output_path = os.path.join(temp_dir, "downloaded_video.mp4")
+        
+        ydl_opts = {
+            'format': f'{video_format["format_id"]}+{audio_format["format_id"]}',  # Скачиваем и видео, и аудио
+            'merge_output_format': 'mp4',  # Конвертировать в mp4
+            'outtmpl': output_path,  # Сохраняем файл во временную директорию
+        }
+        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
-                ydl.download([url])
-                return tmpfile.name  # Возвращаем путь к временно сохраненному файлу
-            except Exception as e:
-                st.error(f"Ошибка при загрузке: {e}")
-                return None
+            ydl.download([url])
+        
+        # Проверяем, что файл был создан
+        if os.path.exists(output_path):
+            return output_path
+        else:
+            st.error("Не удалось создать файл.")
+            return None
+    except Exception as e:
+        st.error(f"Ошибка при загрузке: {e}")
+        return None
 
 # Интерфейс Streamlit
 def main():
